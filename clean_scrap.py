@@ -64,7 +64,12 @@ for link in food_link:
     html = document.read()
     soup = BeautifulSoup(html, "html.parser")
     js_data = soup.find("script")
-    ori_json = json.loads(js_data.string)
+    
+    ##Try convert to JSON
+    try:
+        ori_json = json.loads(js_data.string)
+    except:
+        continue
 
     ##Food Name
     food_name = ori_json[1]["name"]
