@@ -26,6 +26,8 @@ cur2.execute('''CREATE TABLE IF NOT EXISTS food_recipe
 food_link = list()
 count = 0
 
+print("Program is warming up...........")
+
 ##Select all row from recipe.sqlite
 cur1.execute('SELECT url, id FROM Pages ORDER BY id')
 link_list = cur1.fetchall()
