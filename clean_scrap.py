@@ -62,7 +62,14 @@ for row in link_list:
 for link in food_link:
     ##Open URL and parse the JSON
     print("Retriving", link, end=" ")
-    document = urlopen(link, context=ctx)
+    
+    ##Try to open URL
+    try:
+        document = urlopen(link, context=ctx)
+    except:
+        print("Internet Connection Failure. Please Check Your Internet Connection")
+        break
+    
     html = document.read()
     soup = BeautifulSoup(html, "html.parser")
     js_data = soup.find("script")
