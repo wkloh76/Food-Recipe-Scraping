@@ -1,0 +1,23 @@
+{
+    "wrapsrc": {
+        "allrecipes": {
+            "website": "https://www.allrecipes.com"
+        }
+    },
+    "datastorage": {
+        "sqlite": {
+            "host": "recipe.sqlite",
+            "tables": [
+                "CREATE TABLE IF NOT EXISTS Pages (id INTEGER PRIMARY KEY, url TEXT UNIQUE, html TEXT)",
+                "CREATE TABLE IF NOT EXISTS Webs (url TEXT UNIQUE)"
+            ]
+        },
+        "mariadb": {
+            "port": 3306,
+            "host": "localhost",
+            "user": "root",
+            "password": "",
+            "database": "mysql"
+        }
+    }
+}

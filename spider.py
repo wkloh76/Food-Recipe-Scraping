@@ -1,62 +1,68 @@
-import sqlite3
 import urllib.error
 import ssl
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
+import sys
+import json
+import sqlitedb
+
+with open('config.json', 'r') as f:
+    config = json.load(f)
 
 # Ignore SSL certificate errors
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
-conn = sqlite3.connect('recipe.sqlite')
-cur = conn.cursor()
+db = sqlitedb.DB(config['datastorage'][sys.argv[2]])
 
-cur.execute('''CREATE TABLE IF NOT EXISTS Pages
-    (id INTEGER PRIMARY KEY, url TEXT UNIQUE, html TEXT)''')
+webs = list()
 
-cur.execute('''CREATE TABLE IF NOT EXISTS Webs (url TEXT UNIQUE)''')
+row = db.select(
+    'SELECT id,url FROM Pages WHERE html is NULL ORDER BY RANDOM() LIMIT 1', 1)
 
-# Check to see if we are already in progress...
-cur.execute('SELECT id,url FROM Pages WHERE html is NULL ORDER BY RANDOM() LIMIT 1')
-row = cur.fetchone()
 if row is not None:
     print("Restarting existing crawl.  Remove recipe.sqlite to start a fresh crawl.")
-else :
+    tlbwebs = db.select('SELECT url FROM Webs', "all")
+    webs = [row[0] for row in tlbwebs]
+
+else:
     print("Starting new crawl...........")
-    starturl = "https://www.allrecipes.com"
+    starturl = config['wrapsrc'][sys.argv[1]]['website']
     web = starturl
-    if ( starturl.endswith('.htm') or starturl.endswith('.html') ) :
+    if (starturl.endswith('.htm') or starturl.endswith('.html')):
         pos = starturl.rfind('/')
         web = starturl[:pos]
 
-    if ( len(web) > 1 ) :
-        cur.execute('INSERT OR IGNORE INTO Webs (url) VALUES ( ? )', ( web, ) )
-        cur.execute('INSERT OR IGNORE INTO Pages (url, html) VALUES ( ?, NULL)', ( starturl, ) )
-        conn.commit()
+    stament = []
+    if (len(web) > 1):
+        webs.append(web)
+        stament.append(
+            'INSERT OR IGNORE INTO Webs (url) VALUES ("{}")'.format(web))
+        stament.append(
+            'INSERT OR IGNORE INTO Pages (url, html) VALUES ("{}", NULL)'.format(starturl))
+        db.executes(stament)
+        db.commit()
 
 # Get the current webs
-cur.execute('''SELECT url FROM Webs''')
-webs = list()
-for row in cur:
-    webs.append(str(row[0]))
 
 print(webs)
 
 many = 0
 while True:
-    ##if ( many < 1 ) :
+    # if ( many < 1 ) :
     ##    sval = input('How many pages:')
-    ##    if ( len(sval) < 1 ) :
-    ##        break
+    # if ( len(sval) < 1 ) :
+    # break
     ##    many = int(sval)
     ##many = many - 1
 
-    cur.execute('SELECT id,url FROM Pages WHERE html is NULL ORDER BY RANDOM() LIMIT 1')
     try:
-        row = cur.fetchone()
+
+        row = db.select(
+            'SELECT id,url FROM Pages WHERE html is NULL ORDER BY RANDOM() LIMIT 1', "one")
         # print row
         fromid = row[0]
         url = row[1]
@@ -71,10 +77,13 @@ while True:
         document = urlopen(url, context=ctx)
         html = document.read()
 
-        if 'text/html' != document.info().get_content_type() :
+        if 'text/html' != document.info().get_content_type():
             print("Ignore non text/html page")
-            cur.execute('DELETE FROM Pages WHERE url=?', ( url, ) )
-            conn.commit()
+
+            db.executes('DELETE FROM Pages WHERE url="{}"'.format(url))
+            db.commit()
+            # cur.execute('DELETE FROM Pages WHERE url=?', (url, ))
+            # conn.commit()
             continue
 
         print('('+str(len(html))+')', end=' ')
@@ -89,51 +98,58 @@ while True:
         print("Unable to retrieve or parse page")
         continue
 
-    cur.execute('INSERT OR IGNORE INTO Pages (url, html) VALUES ( ?, NULL)', ( url, ) )
-    cur.execute('UPDATE Pages SET html=? WHERE url=?', (memoryview(html), url ) )
-    conn.commit()
+    statement = []
+    bb = 'UPDATE Pages SET html="{}" WHERE url="{}"'.format(
+        memoryview(html), url)
+    statement.append(
+        'INSERT OR IGNORE INTO Pages (url, html) VALUES ("{}", NULL)'.format(url))
+    statement.append(
+        'UPDATE Pages SET html={} WHERE url="{}"'.format(html.decode("utf-8"), url))
+
+    db.executes(stament)
+    db.commit()
 
     # Retrieve all of the anchor tags
     tags = soup('a')
     count = 0
     for tag in tags:
         href = tag.get('href', None)
-        if ( href is None ) :
+        if (href is None):
             continue
         # Resolve relative references like href="/contact"
         up = urlparse(href)
-        if ( len(up.scheme) < 1 ) :
+        if (len(up.scheme) < 1):
             href = urljoin(url, href)
         ipos = href.find('#')
-        if ( ipos > 1 ) :
+        if (ipos > 1):
             href = href[:ipos]
-        if ( href.endswith('.png') or href.endswith('.jpg') or href.endswith('.gif') ) :
+        if (href.endswith('.png') or href.endswith('.jpg') or href.endswith('.gif')):
             continue
-        if ( href.endswith('/') ) :
+        if (href.endswith('/')):
             href = href[:-1]
         # print href
-        if ( len(href) < 1 ) :
+        if (len(href) < 1):
             continue
 
-		# Check if the URL is in any of the webs
+            # Check if the URL is in any of the webs
         found = False
         for web in webs:
-            if ( href.startswith(web) ) :
+            if (href.startswith(web)):
                 found = True
                 break
-        if not found :
+        if not found:
             continue
 
-        cur.execute('INSERT OR IGNORE INTO Pages (url, html) VALUES ( ?, NULL)', ( href, ) )
+        db.execute(
+            'INSERT OR IGNORE INTO Pages (url, html) VALUES ("{}", NULL)'.format(href))
         count = count + 1
-        conn.commit()
+        db.commit()
 
-        cur.execute('SELECT id FROM Pages WHERE url=? LIMIT 1', ( href, ))
         try:
-            row = cur.fetchone()
+            row = db.select('SELECT id FROM Pages WHERE url="{}" LIMIT 1'.format(href), 'one')
             toid = row[0]
         except:
             print('Could not retrieve id')
             continue
     print(count)
-cur.close()
+db.close()
