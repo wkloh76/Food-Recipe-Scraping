@@ -1,1 +1,4 @@
 recipe.sqlite
+recipe.sqlite-journal
+__pycache__
+.env

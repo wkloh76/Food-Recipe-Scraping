@@ -7,6 +7,12 @@ from bs4 import BeautifulSoup
 import sys
 import json
 import sqlitedb
+import os
+
+import settings
+
+WEB_SITE = os.getenv("website")
+DATABSE = os.getenv("db")
 
 with open('config.json', 'r') as f:
     config = json.load(f)
@@ -16,7 +22,10 @@ ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
-db = sqlitedb.DB(config['datastorage'][sys.argv[2]])
+if DATABSE is not None:
+    db = sqlitedb.DB(config['datastorage'][DATABSE])
+else:
+    db = sqlitedb.DB(config['datastorage'][sys.argv[2]])
 
 webs = list()
 
@@ -30,7 +39,11 @@ if row is not None:
 
 else:
     print("Starting new crawl...........")
-    starturl = config['wrapsrc'][sys.argv[1]]['website']
+    if WEB_SITE is not None:
+        starturl = config['wrapsrc'][WEB_SITE]['website']
+    else:
+        starturl = config['wrapsrc'][sys.argv[1]]['website']
+        
     web = starturl
     if (starturl.endswith('.htm') or starturl.endswith('.html')):
         pos = starturl.rfind('/')
@@ -99,8 +112,6 @@ while True:
         continue
 
     statement = []
-    bb = 'UPDATE Pages SET html="{}" WHERE url="{}"'.format(
-        memoryview(html), url)
     statement.append(
         'INSERT OR IGNORE INTO Pages (url, html) VALUES ("{}", NULL)'.format(url))
     statement.append(
