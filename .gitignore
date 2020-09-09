@@ -2,3 +2,4 @@ recipe.sqlite
 recipe.sqlite-journal
 __pycache__
 .env
+clean_recipe.sqlite
